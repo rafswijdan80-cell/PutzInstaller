@@ -2,67 +2,239 @@
 
 set -Eeuo pipefail
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 NAME="PutzOfficial Pterodactyl Installer"
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Load common functions / UI
 source "$BASE_DIR/lib/common.sh"
 
+# Error handler
 trap 'error "Installer berhenti pada baris $LINENO. Lihat log: $LOG_FILE"' ERR
+
+
+# ============================================================
+# MENU
+# ============================================================
+
+show_menu() {
+    clear 2>/dev/null || true
+
+    banner
+
+    echo
+    echo "  SYSTEM"
+    echo "  ──────────────────────────────────────────────────"
+
+    system_info
+
+    echo
+    echo "╭────────────────────────────────────────────────────╮"
+    echo "│                  MAIN MENU                         │"
+    echo "├────────────────────────────────────────────────────┤"
+    echo "│                                                    │"
+    echo "│   01   Install Panel                               │"
+    echo "│   02   Install Docker                              │"
+    echo "│   03   Install Wings                               │"
+    echo "│   04   Full Installation                           │"
+    echo "│   05   Health Check                                │"
+    echo "│   06   Uninstall Panel                             │"
+    echo "│   07   Exit                                        │"
+    echo "│                                                    │"
+    echo "╰────────────────────────────────────────────────────╯"
+    echo
+}
+
+
+# ============================================================
+# INSTALL PANEL
+# ============================================================
+
+install_panel() {
+    echo
+    echo "╭────────────────────────────────────────────────────╮"
+    echo "│              PTERODACTYL PANEL                    │"
+    echo "╰────────────────────────────────────────────────────╯"
+    echo
+
+    bash "$BASE_DIR/lib/panel.sh"
+
+    echo
+    info "Panel installation process selesai."
+    pause
+}
+
+
+# ============================================================
+# INSTALL DOCKER
+# ============================================================
+
+install_docker() {
+    echo
+    echo "╭────────────────────────────────────────────────────╮"
+    echo "│                 DOCKER ENGINE                     │"
+    echo "╰────────────────────────────────────────────────────╯"
+    echo
+
+    bash "$BASE_DIR/lib/docker.sh"
+
+    echo
+    info "Docker installation process selesai."
+    pause
+}
+
+
+# ============================================================
+# INSTALL WINGS
+# ============================================================
+
+install_wings() {
+    echo
+    echo "╭────────────────────────────────────────────────────╮"
+    echo "│                    WINGS                           │"
+    echo "╰────────────────────────────────────────────────────╯"
+    echo
+
+    bash "$BASE_DIR/lib/wings.sh"
+
+    echo
+    info "Wings installation process selesai."
+    pause
+}
+
+
+# ============================================================
+# FULL INSTALLATION
+# ============================================================
+
+full_install() {
+    echo
+    echo "╭────────────────────────────────────────────────────╮"
+    echo "│              FULL INSTALLATION                    │"
+    echo "├────────────────────────────────────────────────────┤"
+    echo "│                                                    │"
+    echo "│  Panel → Docker → Wings                            │"
+    echo "│                                                    │"
+    echo "╰────────────────────────────────────────────────────╯"
+    echo
+
+    bash "$BASE_DIR/lib/panel.sh"
+
+    echo
+    bash "$BASE_DIR/lib/docker.sh"
+
+    echo
+    bash "$BASE_DIR/lib/wings.sh"
+
+    echo
+    info "Full installation selesai."
+    pause
+}
+
+
+# ============================================================
+# HEALTH CHECK
+# ============================================================
+
+run_health_check() {
+    echo
+    echo "╭────────────────────────────────────────────────────╮"
+    echo "│                 HEALTH CHECK                      │"
+    echo "╰────────────────────────────────────────────────────╯"
+    echo
+
+    health_check
+
+    echo
+    pause
+}
+
+
+# ============================================================
+# UNINSTALL PANEL
+# ============================================================
+
+uninstall_panel() {
+    echo
+    echo "╭────────────────────────────────────────────────────╮"
+    echo "│              UNINSTALL PANEL                      │"
+    echo "╰────────────────────────────────────────────────────╯"
+    echo
+
+    bash "$BASE_DIR/lib/uninstall.sh"
+
+    echo
+    pause
+}
+
+
+# ============================================================
+# MAIN
+# ============================================================
 
 main() {
     require_root
     init_log
-    banner
 
     check_os
     check_arch
-    system_info
 
     while true; do
-        echo
-        echo "=========================================="
-        echo "          PUTZOFFICIAL INSTALLER"
-        echo "=========================================="
-        echo
-        echo "1. Install Panel"
-        echo "2. Install Docker"
-        echo "3. Install Wings"
-        echo "4. Install Panel + Docker + Wings"
-        echo "5. Health Check"
-        echo "6. Exit"
-        echo
 
-        read -r -p "Pilih [1-6]: " choice
+        show_menu
+
+        read -r -p "  Select option [1-7] ❯ " choice
 
         case "$choice" in
+
             1)
-                "$BASE_DIR/lib/panel.sh"
+                install_panel
                 ;;
+
             2)
-                "$BASE_DIR/lib/docker.sh"
+                install_docker
                 ;;
+
             3)
-                "$BASE_DIR/lib/wings.sh"
+                install_wings
                 ;;
+
             4)
-                "$BASE_DIR/lib/panel.sh"
-                "$BASE_DIR/lib/docker.sh"
-                "$BASE_DIR/lib/wings.sh"
+                full_install
                 ;;
+
             5)
-                health_check
+                run_health_check
                 ;;
+
             6)
-                echo "Keluar."
+                uninstall_panel
+                ;;
+
+            7)
+                echo
+                echo "  ──────────────────────────────────────────────────"
+                echo "  PutzOfficial Installer"
+                echo "  Thank you for using PutzOfficial."
+                echo "  ──────────────────────────────────────────────────"
+                echo
                 exit 0
                 ;;
+
             *)
-                warn "Pilihan tidak valid."
+                warn "Pilihan tidak valid. Gunakan angka 1-7."
+                sleep 1
                 ;;
+
         esac
+
     done
 }
+
+
+# ============================================================
+# START
+# ============================================================
 
 main "$@"
