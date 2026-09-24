@@ -10,7 +10,7 @@ VERSION="1.0.0"
 NAME="PutzOfficial Full Pterodactyl Uninstaller"
 
 DEVELOPER="PutzOfficial"
-TELEGRAM_CHANNEL="https://t.me/PutzOfficial"
+TELEGRAM_CHANNEL="https://t.me/PutzPayOfficial"
 COPYRIGHT="© 2026 PutzOfficial. All Rights Reserved."
 
 # ============================================================
