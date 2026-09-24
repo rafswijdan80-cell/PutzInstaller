@@ -6,295 +6,382 @@ BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 source "$BASE_DIR/lib/common.sh"
 
-install_wings() {
+WINGS_BINARY="/usr/local/bin/wings"
+WINGS_CONFIG="/etc/pterodactyl/config.yml"
+WINGS_SERVICE="/etc/systemd/system/wings.service"
 
-    info "Memulai instalasi Pterodactyl Wings..."
+WINGS_VERSION="${WINGS_VERSION:-1.13.3}"
+WINGS_DOWNLOAD_URL="https://github.com/pterodactyl/wings/releases/download/v${WINGS_VERSION}/wings_linux_amd64"
 
-    # ============================================================
-    # ROOT CHECK
-    # ============================================================
 
-    if [[ "${EUID}" -ne 0 ]]; then
-        error "Wings harus diinstall sebagai root."
-        return 1
-    fi
+# ============================================================
+# DOCKER
+# ============================================================
 
-    # ============================================================
-    # DEPENDENCY CHECK
-    # ============================================================
+ensure_docker() {
 
     info "Memeriksa Docker..."
 
-    if ! command -v docker >/dev/null 2>&1; then
-        info "Docker belum tersedia. Menjalankan installer Docker..."
+    if command_exists docker; then
 
-        if [[ -x "$BASE_DIR/lib/docker.sh" ]]; then
-            "$BASE_DIR/lib/docker.sh"
-        elif [[ -f "$BASE_DIR/lib/docker.sh" ]]; then
+        log "Docker sudah tersedia."
+
+    else
+
+        info "Docker belum tersedia."
+        info "Menginstall Docker..."
+
+        if [[ -f "$BASE_DIR/lib/docker.sh" ]]; then
             bash "$BASE_DIR/lib/docker.sh"
         else
             error "File lib/docker.sh tidak ditemukan."
-            return 1
         fi
+
     fi
 
-    if ! command -v docker >/dev/null 2>&1; then
-        error "Docker tidak tersedia setelah instalasi."
-        return 1
+    if ! command_exists docker; then
+        error "Docker gagal tersedia."
     fi
 
-    if ! systemctl is-active --quiet docker; then
-        info "Menjalankan Docker..."
-
-        systemctl enable docker >/dev/null 2>&1 || true
-        systemctl start docker
-    fi
+    systemctl enable docker >/dev/null 2>&1 || true
+    systemctl start docker >/dev/null 2>&1 || true
 
     if systemctl is-active --quiet docker; then
         log "Docker: OK"
     else
-        error "Docker gagal aktif."
-        return 1
+        error "Docker tidak aktif."
+    fi
+}
+
+
+# ============================================================
+# INSTALL WINGS BINARY
+# ============================================================
+
+install_wings_binary() {
+
+    if [[ -x "$WINGS_BINARY" ]]; then
+
+        info "Wings sudah terinstall."
+
+        "$WINGS_BINARY" version || true
+
+        return 0
     fi
 
-    # ============================================================
-    # DIRECTORY
-    # ============================================================
+    info "Mengunduh Pterodactyl Wings v${WINGS_VERSION}..."
 
-    info "Mempersiapkan direktori Pterodactyl..."
+    mkdir -p /etc/pterodactyl
+    mkdir -p /var/log/pterodactyl
 
-    mkdir -p \
-        /etc/pterodactyl \
-        /var/log/pterodactyl
+    local tmp_file
 
-    chmod 0755 /etc/pterodactyl
-    chmod 0755 /var/log/pterodactyl
+    tmp_file="$(mktemp)"
 
-    # ============================================================
-    # INSTALL WINGS
-    # ============================================================
+    if ! curl \
+        --fail \
+        --show-error \
+        --location \
+        --connect-timeout 15 \
+        --retry 3 \
+        --retry-delay 2 \
+        "$WINGS_DOWNLOAD_URL" \
+        -o "$tmp_file"; then
 
-    if [[ ! -x /usr/local/bin/wings ]]; then
+        rm -f "$tmp_file"
 
-        info "Mengunduh Pterodactyl Wings..."
-
-        TMP_WINGS="/tmp/wings_linux_amd64"
-
-        rm -f "$TMP_WINGS"
-
-        if ! curl \
-            --fail \
-            --location \
-            --retry 3 \
-            --connect-timeout 15 \
-            --max-time 300 \
-            https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_amd64 \
-            -o "$TMP_WINGS"; then
-
-            error "Gagal mengunduh Pterodactyl Wings."
-            return 1
-        fi
-
-        if [[ ! -s "$TMP_WINGS" ]]; then
-            error "File Wings hasil download kosong."
-            rm -f "$TMP_WINGS"
-            return 1
-        fi
-
-        install -m 0755 "$TMP_WINGS" /usr/local/bin/wings
-
-        rm -f "$TMP_WINGS"
-
-        log "Wings berhasil diinstall."
-
-    else
-
-        log "Wings sudah terinstall."
-
+        error "Gagal mengunduh Wings."
     fi
 
-    # ============================================================
-    # VERSION
-    # ============================================================
+    if [[ ! -s "$tmp_file" ]]; then
+
+        rm -f "$tmp_file"
+
+        error "File Wings kosong."
+    fi
+
+    install \
+        -m 0755 \
+        "$tmp_file" \
+        "$WINGS_BINARY"
+
+    rm -f "$tmp_file"
+
+    if [[ ! -x "$WINGS_BINARY" ]]; then
+        error "Binary Wings gagal dipasang."
+    fi
+
+    log "Wings berhasil diinstall."
 
     info "Versi Wings:"
 
-    if ! /usr/local/bin/wings version; then
-        error "Binary Wings tidak dapat dijalankan."
-        return 1
-    fi
+    "$WINGS_BINARY" version || true
+}
 
-    echo
 
-    # ============================================================
-    # NODE CONFIGURATION
-    # ============================================================
+# ============================================================
+# INPUT PANEL
+# ============================================================
 
-    echo "================================================"
-    echo "              KONFIGURASI NODE"
-    echo "================================================"
-    echo
-    echo "Buat Node terlebih dahulu di Admin Pterodactyl:"
-    echo
-    echo "1. Login ke Admin Panel"
-    echo "2. Buka Administration"
-    echo "3. Pilih Nodes"
-    echo "4. Klik Create New"
-    echo "5. Isi nama Node"
-    echo "6. Isi FQDN Node"
-    echo "7. Scheme: HTTPS"
-    echo "8. Daemon Port: 8080"
-    echo "9. SFTP Port: 2022"
-    echo
-    echo "Setelah Node dibuat, buka:"
-    echo
-    echo "Nodes -> Node kamu -> Configuration"
-    echo
-    echo "Salin konfigurasi/token Wings dari halaman tersebut."
-    echo
-    echo "================================================"
-    echo
+ask_panel_url() {
 
-    local panel_url
-    local token
-    local node_id
-
-    # ============================================================
-    # PANEL URL
-    # ============================================================
+    local value=""
 
     while true; do
 
-        panel_url="$(
-            ask_required \
-                'Panel URL, contoh https://panel.example.com'
-        )"
+        read -r -p \
+            "Panel URL, contoh https://panel.example.com: " \
+            value
 
-        panel_url="${panel_url%/}"
+        value="${value%/}"
 
-        if [[ "$panel_url" =~ ^https?:// ]]; then
-            break
+        if [[ -z "$value" ]]; then
+            warn "Panel URL wajib diisi."
+            continue
         fi
 
-        warn "Panel URL harus diawali http:// atau https://."
+        if [[ ! "$value" =~ ^https?:// ]]; then
+            warn "Panel URL harus diawali http:// atau https://"
+            continue
+        fi
 
+        printf '%s' "$value"
+
+        return 0
     done
+}
 
-    # ============================================================
-    # NODE ID
-    # ============================================================
+
+ask_token() {
+
+    local value=""
 
     while true; do
 
-        node_id="$(
-            ask_required \
-                'Node ID'
-        )"
+        read -r -p "Application API Token: " value
 
-        if [[ "$node_id" =~ ^[0-9]+$ ]] && [[ "$node_id" -gt 0 ]]; then
-            break
+        if [[ -z "$value" ]]; then
+            warn "Token wajib diisi."
+            continue
         fi
 
-        warn "Node ID harus berupa angka lebih besar dari 0."
+        # Mencegah kesalahan seperti memasukkan command shell
+        if [[ "$value" == *"sudo "* ]] ||
+           [[ "$value" == *"wings configure"* ]] ||
+           [[ "$value" == *"cd /etc/pterodactyl"* ]]; then
 
+            warn "Yang dimasukkan harus TOKEN saja, bukan command."
+            warn "Contoh: ptla_xxxxxxxxxxxxxxxxxxxxxxxxx"
+            continue
+        fi
+
+        printf '%s' "$value"
+
+        return 0
     done
+}
 
-    # ============================================================
-    # WINGS TOKEN
-    # ============================================================
+
+ask_node_id() {
+
+    local value=""
 
     while true; do
 
-        token="$(
-            ask_required \
-                'Wings token/configuration token'
-        )"
+        read -r -p "Node ID: " value
 
-        if [[ -n "$token" ]]; then
-            break
+        if [[ ! "$value" =~ ^[0-9]+$ ]]; then
+            warn "Node ID harus berupa angka."
+            continue
         fi
 
-        warn "Token tidak boleh kosong."
+        if [[ "$value" == "0" ]]; then
+            warn "Node ID tidak boleh 0."
+            continue
+        fi
 
+        printf '%s' "$value"
+
+        return 0
     done
+}
 
-    echo
+
+# ============================================================
+# CHECK PANEL CONNECTION
+# ============================================================
+
+check_panel_connection() {
+
+    local panel_url="$1"
 
     info "Memeriksa koneksi ke Panel..."
 
-    # Hanya cek konektivitas dasar.
-    # TIDAK memanggil endpoint /api/application/nodes/.../configuration
-    # karena endpoint tersebut membutuhkan autentikasi API dan dapat
-    # mengembalikan redirect ke /auth/login.
+    local http_code
 
-    local panel_code
-
-    panel_code="$(
+    http_code="$(
         curl \
             -4 \
             -sS \
             -o /dev/null \
+            --connect-timeout 10 \
+            --max-time 20 \
             -w '%{http_code}' \
-            --connect-timeout 15 \
-            --max-time 30 \
-            "$panel_url" \
-            2>/dev/null || echo "000"
-    )"
+            "$panel_url"
+    )" || {
 
-    if [[ "$panel_code" == "000" ]]; then
-        warn "Panel tidak dapat diakses melalui IPv4."
-        warn "Lanjutkan hanya jika URL panel memang benar."
-    else
-        log "Panel dapat diakses. HTTP: $panel_code"
-    fi
+        error "Panel tidak dapat diakses dari VPS."
+    }
 
-    # ============================================================
-    # GENERATE CONFIG
-    # ============================================================
+    case "$http_code" in
+
+        200|301|302|403|404|405|419|401)
+
+            log "Panel dapat diakses. HTTP $http_code"
+
+            ;;
+
+        *)
+
+            error "Panel memberikan HTTP $http_code."
+            ;;
+
+    esac
+}
+
+
+# ============================================================
+# CONFIGURE WINGS
+# ============================================================
+
+configure_wings() {
+
+    local panel_url="$1"
+    local token="$2"
+    local node_id="$3"
 
     info "Membuat config.yml Wings..."
 
-    cd /etc/pterodactyl
+    mkdir -p /etc/pterodactyl
 
-    rm -f /etc/pterodactyl/config.yml.tmp
+    # Backup konfigurasi lama jika ada
+    if [[ -s "$WINGS_CONFIG" ]]; then
 
-    if ! /usr/local/bin/wings configure \
-        --panel-url "$panel_url" \
-        --token "$token" \
-        --node "$node_id"; then
+        local backup
+
+        backup="${WINGS_CONFIG}.backup.$(date +%Y%m%d-%H%M%S)"
+
+        cp "$WINGS_CONFIG" "$backup"
+
+        log "Backup config lama: $backup"
+    fi
+
+    # Hapus config sementara jika ada
+    rm -f "${WINGS_CONFIG}.tmp"
+
+    info "Menghubungkan Wings ke Panel..."
+    info "Node ID: $node_id"
+    info "Panel: $panel_url"
+
+    local output
+    local status=0
+
+    set +e
+
+    output="$(
+        "$WINGS_BINARY" configure \
+            --panel-url "$panel_url" \
+            --token "$token" \
+            --node "$node_id" \
+            --config-path "$WINGS_CONFIG" \
+            --override \
+            2>&1
+    )"
+
+    status=$?
+
+    set -e
+
+    echo "$output"
+
+    if [[ "$status" -ne 0 ]]; then
+
+        if echo "$output" | grep -qi \
+            "authentication credentials provided were not valid"; then
+
+            error "Token Wings tidak valid. Buat Application API Token baru dari Admin Pterodactyl."
+        fi
+
+        if echo "$output" | grep -qi \
+            "failed to fetch configuration"; then
+
+            error "Wings tidak dapat mengambil konfigurasi Node dari Panel."
+        fi
 
         error "Wings gagal membuat config.yml."
-        return 1
     fi
 
-    # ============================================================
-    # CONFIG CHECK
-    # ============================================================
+    if [[ ! -s "$WINGS_CONFIG" ]]; then
 
-    if [[ ! -s /etc/pterodactyl/config.yml ]]; then
-        error "config.yml tidak ditemukan atau kosong."
-        return 1
+        error "config.yml tidak berhasil dibuat."
     fi
 
-    chmod 0600 /etc/pterodactyl/config.yml
+    chmod 600 "$WINGS_CONFIG"
 
     log "config.yml berhasil dibuat."
+}
 
-    echo
-    info "Lokasi konfigurasi:"
-    echo "/etc/pterodactyl/config.yml"
-    echo
 
-    # ============================================================
-    # SYSTEMD SERVICE
-    # ============================================================
+# ============================================================
+# VALIDATE CONFIG
+# ============================================================
 
-    info "Membuat service systemd Wings..."
+validate_config() {
 
-    cat > /etc/systemd/system/wings.service <<'SERVICE'
+    info "Memeriksa config.yml..."
+
+    if [[ ! -f "$WINGS_CONFIG" ]]; then
+        error "config.yml tidak ditemukan."
+    fi
+
+    if [[ ! -s "$WINGS_CONFIG" ]]; then
+        error "config.yml kosong."
+    fi
+
+    # Pastikan beberapa bagian penting tersedia.
+    if ! grep -qE '^uuid:' "$WINGS_CONFIG"; then
+        warn "UUID Node tidak ditemukan di config.yml."
+    fi
+
+    if ! grep -qE '^token_id:' "$WINGS_CONFIG"; then
+        warn "token_id tidak ditemukan di config.yml."
+    fi
+
+    if ! grep -qE '^token:' "$WINGS_CONFIG"; then
+        warn "token tidak ditemukan di config.yml."
+    fi
+
+    if ! grep -qE '^remote:' "$WINGS_CONFIG"; then
+        warn "remote Panel tidak ditemukan di config.yml."
+    fi
+
+    log "config.yml berhasil divalidasi."
+}
+
+
+# ============================================================
+# SYSTEMD SERVICE
+# ============================================================
+
+create_systemd_service() {
+
+    info "Membuat systemd service Wings..."
+
+    cat > "$WINGS_SERVICE" <<'SERVICE'
 [Unit]
 Description=Pterodactyl Wings Daemon
 Documentation=https://pterodactyl.io/
+Wants=docker.service
 After=docker.service
 Requires=docker.service
 
@@ -313,68 +400,65 @@ RestartSec=5s
 
 LimitNOFILE=4096
 
-NoNewPrivileges=false
 PrivateTmp=false
+ProtectSystem=full
+ProtectHome=false
 
 [Install]
 WantedBy=multi-user.target
 SERVICE
 
-    chmod 0644 /etc/systemd/system/wings.service
+    chmod 644 "$WINGS_SERVICE"
 
-    # ============================================================
-    # FIREWALL
-    # ============================================================
+    systemctl daemon-reload
+
+    systemctl enable wings
+
+    log "systemd Wings berhasil dibuat."
+}
+
+
+# ============================================================
+# FIREWALL
+# ============================================================
+
+configure_firewall() {
 
     info "Memeriksa firewall..."
 
-    if command -v ufw >/dev/null 2>&1; then
+    if ! command_exists ufw; then
 
-        if ufw status 2>/dev/null | grep -q "Status: active"; then
+        warn "UFW tidak tersedia. Firewall dilewati."
 
-            info "Membuka port Wings..."
-
-            ufw allow 8080/tcp >/dev/null 2>&1 || true
-            ufw allow 2022/tcp >/dev/null 2>&1 || true
-
-            log "Port 8080/tcp dan 2022/tcp diizinkan."
-
-        else
-
-            log "UFW tidak aktif. Tidak ada perubahan firewall."
-
-        fi
-
-    else
-
-        log "UFW tidak terinstall. Melewati konfigurasi firewall."
-
+        return 0
     fi
 
-    # ============================================================
-    # SYSTEMD RELOAD
-    # ============================================================
+    # Jangan mengubah policy firewall.
+    # Hanya membuka port yang diperlukan Wings.
 
-    info "Memuat ulang systemd..."
+    ufw allow 8080/tcp >/dev/null 2>&1 || true
+    ufw allow 2022/tcp >/dev/null 2>&1 || true
+
+    log "Port Wings: 8080/tcp"
+    log "Port SFTP Wings: 2022/tcp"
+}
+
+
+# ============================================================
+# START WINGS
+# ============================================================
+
+start_wings() {
+
+    info "Menjalankan Wings..."
 
     systemctl daemon-reload
 
     systemctl enable wings >/dev/null 2>&1
 
-    # ============================================================
-    # START WINGS
-    # ============================================================
-
-    echo
-    info "Menjalankan Wings..."
-
     systemctl restart wings
 
-    sleep 5
-
-    # ============================================================
-    # SERVICE CHECK
-    # ============================================================
+    sleep 3
 
     if systemctl is-active --quiet wings; then
 
@@ -382,47 +466,59 @@ SERVICE
 
     else
 
-        error "Wings gagal aktif."
+        warn "Wings gagal aktif."
 
         echo
-        echo "================ WINGS LOG ================"
+        echo "================================================"
+        echo "              WINGS ERROR LOG"
+        echo "================================================"
+        echo
+
         journalctl \
             -u wings \
-            -n 50 \
+            -n 80 \
             --no-pager \
             -l || true
-        echo "============================================"
 
-        return 1
+        echo
 
+        error "Wings gagal dijalankan."
     fi
+}
 
-    # ============================================================
-    # PORT CHECK
-    # ============================================================
+
+# ============================================================
+# PORT CHECK
+# ============================================================
+
+port_check() {
 
     echo
     info "Memeriksa port Wings..."
 
-    if ss -lntp 2>/dev/null | grep -q ':8080'; then
+    if ss -lntp 2>/dev/null | grep -qE ':8080[[:space:]]'; then
         log "Port 8080: LISTEN"
     else
-        warn "Port 8080 belum terlihat LISTEN."
+        warn "Port 8080 belum LISTEN."
     fi
 
-    if ss -lntp 2>/dev/null | grep -q ':2022'; then
+    if ss -lntp 2>/dev/null | grep -qE ':2022[[:space:]]'; then
         log "Port 2022: LISTEN"
     else
-        warn "Port 2022 belum terlihat LISTEN."
+        warn "Port 2022 belum LISTEN."
     fi
+}
 
-    # ============================================================
-    # STATUS
-    # ============================================================
+
+# ============================================================
+# WINGS STATUS
+# ============================================================
+
+show_wings_status() {
 
     echo
     echo "================================================"
-    echo "              STATUS WINGS"
+    echo "              WINGS STATUS"
     echo "================================================"
     echo
 
@@ -431,25 +527,146 @@ SERVICE
         -l || true
 
     echo
-    echo "================================================"
-    echo "          INSTALASI WINGS SELESAI"
-    echo "================================================"
-    echo
-    echo "Binary    : /usr/local/bin/wings"
-    echo "Config    : /etc/pterodactyl/config.yml"
-    echo "Service   : wings.service"
-    echo "Daemon    : 8080"
-    echo "SFTP      : 2022"
-    echo
-    echo "Cek status:"
-    echo "  systemctl status wings"
-    echo
-    echo "Lihat log:"
-    echo "  journalctl -u wings -f"
+
+    echo "Config:"
+    echo "  $WINGS_CONFIG"
+
     echo
 
-    log "Instalasi Wings selesai."
+    echo "Service:"
+    echo "  $WINGS_SERVICE"
 
+    echo
 }
+
+
+# ============================================================
+# MAIN INSTALL
+# ============================================================
+
+install_wings() {
+
+    info "Memulai instalasi Pterodactyl Wings..."
+
+    # --------------------------------------------------------
+    # ROOT
+    # --------------------------------------------------------
+
+    require_root
+
+    # --------------------------------------------------------
+    # DEPENDENCIES
+    # --------------------------------------------------------
+
+    ensure_docker
+
+    # --------------------------------------------------------
+    # WINGS BINARY
+    # --------------------------------------------------------
+
+    install_wings_binary
+
+    # --------------------------------------------------------
+    # INPUT NODE
+    # --------------------------------------------------------
+
+    echo
+    echo "================================================"
+    echo "              KONFIGURASI NODE"
+    echo "================================================"
+    echo
+    echo "Buat Node terlebih dahulu di:"
+    echo
+    echo "Admin Panel → Nodes → Create New"
+    echo
+    echo "Konfigurasi umum:"
+    echo "  FQDN        : domain Node kamu"
+    echo "  SSL         : sesuai konfigurasi Node"
+    echo "  Daemon Port : 8080"
+    echo "  SFTP Port   : 2022"
+    echo
+    echo "Setelah Node dibuat:"
+    echo "  1. Buka Node tersebut"
+    echo "  2. Buka Configuration"
+    echo "  3. Siapkan Application API Token"
+    echo "  4. Masukkan Node ID di bawah"
+    echo
+
+    local panel_url
+    local token
+    local node_id
+
+    panel_url="$(ask_panel_url)"
+
+    echo
+
+    check_panel_connection "$panel_url"
+
+    echo
+
+    token="$(ask_token)"
+
+    echo
+
+    node_id="$(ask_node_id)"
+
+    echo
+
+    # --------------------------------------------------------
+    # CONFIG
+    # --------------------------------------------------------
+
+    configure_wings \
+        "$panel_url" \
+        "$token" \
+        "$node_id"
+
+    validate_config
+
+    # --------------------------------------------------------
+    # SYSTEMD
+    # --------------------------------------------------------
+
+    create_systemd_service
+
+    # --------------------------------------------------------
+    # FIREWALL
+    # --------------------------------------------------------
+
+    configure_firewall
+
+    # --------------------------------------------------------
+    # START
+    # --------------------------------------------------------
+
+    start_wings
+
+    # --------------------------------------------------------
+    # PORT
+    # --------------------------------------------------------
+
+    port_check
+
+    # --------------------------------------------------------
+    # STATUS
+    # --------------------------------------------------------
+
+    show_wings_status
+
+    echo
+    echo "================================================"
+    echo "        WINGS INSTALLATION COMPLETE"
+    echo "================================================"
+    echo
+    log "Wings berhasil diinstall."
+    log "Config: $WINGS_CONFIG"
+    log "Service: wings"
+    echo
+}
+
+
+# ============================================================
+# RUN
+# ============================================================
 
 install_wings
