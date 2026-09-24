@@ -7,10 +7,27 @@ NAME="PutzOfficial Pterodactyl Installer"
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Load common functions / UI
+# ============================================================
+# LOAD COMMON FUNCTIONS / UI
+# ============================================================
+
 source "$BASE_DIR/lib/common.sh"
 
-# Error handler
+
+# ============================================================
+# PAUSE FUNCTION
+# ============================================================
+
+pause() {
+    echo
+    read -r -p "  Press Enter to return to menu ❯ " _
+}
+
+
+# ============================================================
+# ERROR HANDLER
+# ============================================================
+
 trap 'error "Installer berhenti pada baris $LINENO. Lihat log: $LOG_FILE"' ERR
 
 
@@ -62,6 +79,7 @@ install_panel() {
 
     echo
     info "Panel installation process selesai."
+
     pause
 }
 
@@ -81,6 +99,7 @@ install_docker() {
 
     echo
     info "Docker installation process selesai."
+
     pause
 }
 
@@ -100,6 +119,7 @@ install_wings() {
 
     echo
     info "Wings installation process selesai."
+
     pause
 }
 
@@ -119,16 +139,41 @@ full_install() {
     echo "╰────────────────────────────────────────────────────╯"
     echo
 
+    echo "[1/3] Installing Pterodactyl Panel..."
+    echo
+
     bash "$BASE_DIR/lib/panel.sh"
 
     echo
+    echo "────────────────────────────────────────────────────"
+    echo
+
+    echo "[2/3] Installing Docker..."
+    echo
+
     bash "$BASE_DIR/lib/docker.sh"
 
     echo
+    echo "────────────────────────────────────────────────────"
+    echo
+
+    echo "[3/3] Installing Wings..."
+    echo
+
     bash "$BASE_DIR/lib/wings.sh"
 
     echo
-    info "Full installation selesai."
+    echo "╭────────────────────────────────────────────────────╮"
+    echo "│              INSTALLATION COMPLETE                │"
+    echo "├────────────────────────────────────────────────────┤"
+    echo "│                                                    │"
+    echo "│   ✓ Pterodactyl Panel                             │"
+    echo "│   ✓ Docker                                        │"
+    echo "│   ✓ Wings                                         │"
+    echo "│                                                    │"
+    echo "╰────────────────────────────────────────────────────╯"
+    echo
+
     pause
 }
 
@@ -140,13 +185,17 @@ full_install() {
 run_health_check() {
     echo
     echo "╭────────────────────────────────────────────────────╮"
-    echo "│                 HEALTH CHECK                      │"
+    echo "│                 HEALTH CHECK                       │"
     echo "╰────────────────────────────────────────────────────╯"
     echo
 
     health_check
 
     echo
+    echo "╭────────────────────────────────────────────────────╮"
+    echo "│              HEALTH CHECK COMPLETE                 │"
+    echo "╰────────────────────────────────────────────────────╯"
+
     pause
 }
 
@@ -158,7 +207,7 @@ run_health_check() {
 uninstall_panel() {
     echo
     echo "╭────────────────────────────────────────────────────╮"
-    echo "│              UNINSTALL PANEL                      │"
+    echo "│              UNINSTALL PANEL                       │"
     echo "╰────────────────────────────────────────────────────╯"
     echo
 
@@ -174,9 +223,14 @@ uninstall_panel() {
 # ============================================================
 
 main() {
+
+    # Root check
     require_root
+
+    # Initialize log
     init_log
 
+    # System checks
     check_os
     check_arch
 
@@ -188,40 +242,70 @@ main() {
 
         case "$choice" in
 
+            # ------------------------------------------------
+            # 1. INSTALL PANEL
+            # ------------------------------------------------
             1)
                 install_panel
                 ;;
 
+            # ------------------------------------------------
+            # 2. INSTALL DOCKER
+            # ------------------------------------------------
             2)
                 install_docker
                 ;;
 
+            # ------------------------------------------------
+            # 3. INSTALL WINGS
+            # ------------------------------------------------
             3)
                 install_wings
                 ;;
 
+            # ------------------------------------------------
+            # 4. FULL INSTALLATION
+            # ------------------------------------------------
             4)
                 full_install
                 ;;
 
+            # ------------------------------------------------
+            # 5. HEALTH CHECK
+            # ------------------------------------------------
             5)
                 run_health_check
                 ;;
 
+            # ------------------------------------------------
+            # 6. UNINSTALL PANEL
+            # ------------------------------------------------
             6)
                 uninstall_panel
                 ;;
 
+            # ------------------------------------------------
+            # 7. EXIT
+            # ------------------------------------------------
             7)
+                clear 2>/dev/null || true
+
                 echo
-                echo "  ──────────────────────────────────────────────────"
-                echo "  PutzOfficial Installer"
-                echo "  Thank you for using PutzOfficial."
-                echo "  ──────────────────────────────────────────────────"
+                echo "╭────────────────────────────────────────────────────╮"
+                echo "│                                                    │"
+                echo "│              PUTZOFFICIAL INSTALLER               │"
+                echo "│                                                    │"
+                echo "│              Thank you for using it.              │"
+                echo "│                                                    │"
+                echo "╰────────────────────────────────────────────────────╯"
                 echo
+
                 exit 0
                 ;;
 
+            # ------------------------------------------------
+            # INVALID OPTION
+            # ------------------------------------------------
             *)
                 warn "Pilihan tidak valid. Gunakan angka 1-7."
                 sleep 1
@@ -234,7 +318,7 @@ main() {
 
 
 # ============================================================
-# START
+# START INSTALLER
 # ============================================================
 
 main "$@"
