@@ -6,8 +6,12 @@ set -Eeuo pipefail
 # PUTZOFFICIAL PTERODACTYL INSTALLER
 # ============================================================
 
-VERSION="1.1.1"
+VERSION="1.1.2"
 NAME="PutzOfficial Pterodactyl Installer"
+
+DEVELOPER="PutzOfficial"
+TELEGRAM_CHANNEL="https://t.me/PutzPayOfficial"
+COPYRIGHT="© 2026 PutzOfficial. All Rights Reserved."
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -15,10 +19,15 @@ BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # LOAD COMMON
 # ============================================================
 
+if [[ ! -f "$BASE_DIR/lib/common.sh" ]]; then
+    echo "[ERROR] lib/common.sh tidak ditemukan."
+    exit 1
+fi
+
 source "$BASE_DIR/lib/common.sh"
 
 # ============================================================
-# INITIAL LOG
+# LOG
 # ============================================================
 
 init_log
@@ -33,13 +42,17 @@ handle_error() {
     local line_number="${1:-unknown}"
 
     echo
-    echo "================================================"
-    echo "              INSTALLER ERROR"
-    echo "================================================"
+    echo "╭────────────────────────────────────────────────────╮"
+    echo "│                 INSTALLER ERROR                    │"
+    echo "╰────────────────────────────────────────────────────╯"
     echo
-    echo "[ERROR] Installer berhenti pada baris $line_number."
+    echo "[ERROR] Installer berhenti pada baris: $line_number"
     echo "[ERROR] Exit code: $exit_code"
-    echo "[ERROR] Log: $LOG_FILE"
+
+    if [[ -n "${LOG_FILE:-}" ]]; then
+        echo "[ERROR] Log: $LOG_FILE"
+    fi
+
     echo
 
     return "$exit_code"
@@ -58,6 +71,24 @@ pause() {
 }
 
 # ============================================================
+# INSTALLER INFO
+# ============================================================
+
+show_about() {
+
+    echo
+    echo "╭────────────────────────────────────────────────────╮"
+    echo "│              PUTZOFFICIAL INSTALLER               │"
+    echo "├────────────────────────────────────────────────────┤"
+    printf "│  %-16s : %-29s │\n" "Name" "$NAME"
+    printf "│  %-16s : %-29s │\n" "Version" "$VERSION"
+    printf "│  %-16s : %-29s │\n" "Developer" "$DEVELOPER"
+    printf "│  %-16s : %-29s │\n" "Telegram" "$TELEGRAM_CHANNEL"
+    printf "│  %-16s : %-29s │\n" "Copyright" "$COPYRIGHT"
+    echo "╰────────────────────────────────────────────────────╯"
+}
+
+# ============================================================
 # MENU
 # ============================================================
 
@@ -66,6 +97,8 @@ show_menu() {
     clear 2>/dev/null || true
 
     banner
+
+    show_about
 
     echo
     echo "  SYSTEM"
@@ -79,12 +112,27 @@ show_menu() {
     echo "├────────────────────────────────────────────────────┤"
     echo "│                                                    │"
     echo "│   01   Install Panel                               │"
+    echo "│        Install Pterodactyl Panel.                  │"
+    echo "│                                                    │"
     echo "│   02   Install Docker                              │"
+    echo "│        Install Docker Engine.                      │"
+    echo "│                                                    │"
     echo "│   03   Install Wings                               │"
+    echo "│        Install Pterodactyl Wings Node.             │"
+    echo "│                                                    │"
     echo "│   04   Full Installation                           │"
+    echo "│        Panel + Docker + Wings.                     │"
+    echo "│                                                    │"
     echo "│   05   Health Check                                │"
+    echo "│        Check Panel, Wings & system.                │"
+    echo "│                                                    │"
     echo "│   06   Uninstall Panel                             │"
-    echo "│   07   Exit                                        │"
+    echo "│        Full cleanup Pterodactyl.                   │"
+    echo "│                                                    │"
+    echo "│   07   Uninstall Wings                             │"
+    echo "│        Remove Wings only.                          │"
+    echo "│                                                    │"
+    echo "│   08   Exit                                        │"
     echo "│                                                    │"
     echo "╰────────────────────────────────────────────────────╯"
     echo
@@ -99,6 +147,11 @@ install_panel() {
     echo
     echo "╭────────────────────────────────────────────────────╮"
     echo "│              PTERODACTYL PANEL                    │"
+    echo "├────────────────────────────────────────────────────┤"
+    echo "│                                                    │"
+    echo "│  Install Pterodactyl Panel untuk mengelola        │"
+    echo "│  server melalui web interface.                    │"
+    echo "│                                                    │"
     echo "╰────────────────────────────────────────────────────╯"
     echo
 
@@ -133,6 +186,11 @@ install_docker() {
     echo
     echo "╭────────────────────────────────────────────────────╮"
     echo "│                 DOCKER ENGINE                     │"
+    echo "├────────────────────────────────────────────────────┤"
+    echo "│                                                    │"
+    echo "│  Docker digunakan oleh Wings untuk menjalankan     │"
+    echo "│  container/server Pterodactyl.                    │"
+    echo "│                                                    │"
     echo "╰────────────────────────────────────────────────────╯"
     echo
 
@@ -167,6 +225,11 @@ install_wings() {
     echo
     echo "╭────────────────────────────────────────────────────╮"
     echo "│                    WINGS                           │"
+    echo "├────────────────────────────────────────────────────┤"
+    echo "│                                                    │"
+    echo "│  Wings adalah daemon Pterodactyl yang menjalankan  │"
+    echo "│  server pada Node VPS.                             │"
+    echo "│                                                    │"
     echo "╰────────────────────────────────────────────────────╯"
     echo
 
@@ -203,15 +266,26 @@ full_install() {
     echo "│              FULL INSTALLATION                    │"
     echo "├────────────────────────────────────────────────────┤"
     echo "│                                                    │"
-    echo "│  Panel → Docker → Wings                            │"
+    echo "│  1. Pterodactyl Panel                              │"
+    echo "│  2. Docker                                         │"
+    echo "│  3. Pterodactyl Wings                              │"
     echo "│                                                    │"
     echo "╰────────────────────────────────────────────────────╯"
     echo
+
+    read -r -p "  Lanjutkan Full Installation? [y/N] ❯ " confirm
+
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        info "Full installation dibatalkan."
+        pause
+        return 0
+    fi
 
     # ========================================================
     # PANEL
     # ========================================================
 
+    echo
     echo "[1/3] Installing Pterodactyl Panel..."
     echo
 
@@ -281,6 +355,12 @@ full_install() {
     echo "│   ✓ Wings                                         │"
     echo "│                                                    │"
     echo "╰────────────────────────────────────────────────────╯"
+
+    echo
+    echo "  Developer : $DEVELOPER"
+    echo "  Telegram  : $TELEGRAM_CHANNEL"
+    echo "  Version   : $VERSION"
+    echo "  $COPYRIGHT"
     echo
 
     log "Full installation selesai."
@@ -297,6 +377,10 @@ run_health_check() {
     echo
     echo "╭────────────────────────────────────────────────────╮"
     echo "│                 HEALTH CHECK                       │"
+    echo "├────────────────────────────────────────────────────┤"
+    echo "│                                                    │"
+    echo "│  Memeriksa service dan komponen Pterodactyl.       │"
+    echo "│                                                    │"
     echo "╰────────────────────────────────────────────────────╯"
     echo
 
@@ -318,7 +402,13 @@ uninstall_panel() {
 
     echo
     echo "╭────────────────────────────────────────────────────╮"
-    echo "│              UNINSTALL PANEL                       │"
+    echo "│              FULL UNINSTALL PANEL                  │"
+    echo "├────────────────────────────────────────────────────┤"
+    echo "│                                                    │"
+    echo "│  Menghapus seluruh environment Pterodactyl.        │"
+    echo "│                                                    │"
+    echo "│  Gunakan hanya jika ingin melakukan reinstall.     │"
+    echo "│                                                    │"
     echo "╰────────────────────────────────────────────────────╯"
     echo
 
@@ -330,11 +420,51 @@ uninstall_panel() {
 
     if bash "$BASE_DIR/lib/uninstall.sh"; then
 
-        log "Proses uninstall selesai."
+        log "Proses full uninstall selesai."
 
     else
 
         error "Uninstall Panel gagal."
+        show_log_location
+
+    fi
+
+    echo
+    pause
+}
+
+# ============================================================
+# UNINSTALL WINGS
+# ============================================================
+
+uninstall_wings() {
+
+    echo
+    echo "╭────────────────────────────────────────────────────╮"
+    echo "│                UNINSTALL WINGS                    │"
+    echo "├────────────────────────────────────────────────────┤"
+    echo "│                                                    │"
+    echo "│  Menghapus Pterodactyl Wings dari Node VPS.        │"
+    echo "│                                                    │"
+    echo "│  Panel, PHP, Nginx, Docker dan database            │"
+    echo "│  TIDAK akan disentuh.                              │"
+    echo "│                                                    │"
+    echo "╰────────────────────────────────────────────────────╯"
+    echo
+
+    if [[ ! -f "$BASE_DIR/lib/uninstall_wings.sh" ]]; then
+        warn "lib/uninstall_wings.sh tidak ditemukan."
+        pause
+        return 1
+    fi
+
+    if bash "$BASE_DIR/lib/uninstall_wings.sh"; then
+
+        log "Proses uninstall Wings selesai."
+
+    else
+
+        error "Uninstall Wings gagal."
         show_log_location
 
     fi
@@ -360,6 +490,11 @@ exit_installer() {
     echo "│                                                    │"
     echo "╰────────────────────────────────────────────────────╯"
     echo
+    echo "  Developer : $DEVELOPER"
+    echo "  Telegram  : $TELEGRAM_CHANNEL"
+    echo "  Version   : $VERSION"
+    echo "  $COPYRIGHT"
+    echo
 
     exit 0
 }
@@ -370,28 +505,16 @@ exit_installer() {
 
 main() {
 
-    # --------------------------------------------------------
-    # ROOT
-    # --------------------------------------------------------
-
     require_root
-
-    # --------------------------------------------------------
-    # SYSTEM CHECK
-    # --------------------------------------------------------
 
     check_os
     check_arch
-
-    # --------------------------------------------------------
-    # MAIN LOOP
-    # --------------------------------------------------------
 
     while true; do
 
         show_menu
 
-        read -r -p "  Select option [1-7] ❯ " choice
+        read -r -p "  Select option [1-8] ❯ " choice
 
         case "$choice" in
 
@@ -420,11 +543,15 @@ main() {
                 ;;
 
             7)
+                uninstall_wings
+                ;;
+
+            8)
                 exit_installer
                 ;;
 
             *)
-                warn "Pilihan tidak valid. Gunakan angka 1-7."
+                warn "Pilihan tidak valid. Gunakan angka 1-8."
                 sleep 1
                 ;;
 
